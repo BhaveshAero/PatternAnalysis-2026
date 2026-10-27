@@ -16,3 +16,6 @@ __pycache__/
 *.nii
 *.nii.gz
 data/
+
+# Ignore license agreements
+*.txt

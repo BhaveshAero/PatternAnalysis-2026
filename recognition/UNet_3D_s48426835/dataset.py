@@ -114,3 +114,83 @@ def get_dataloaders(base_dir, batch_size=16):
                              pin_memory=False)
 
     return train_loader, val_loader, test_loader
+
+
+def load_data_3D(imageNames, normImage=False, categorical=False, dtype=np.float32, getAffines=False, orient=False,
+                 early_stop=False):
+    """
+    Load medical image data from names, cases list provided into a list for each.
+    This function pre-allocates 5D arrays for conv3d to avoid excessive memory usage.
+    """
+    affines = []
+    interp = 'linear'
+    if dtype == np.uint8:  # assume labels
+        interp = 'nearest'
+
+    # get fixed size
+    num = len(imageNames)
+    niftiImage = nib.load(imageNames[0])
+    first_case = niftiImage.get_fdata(caching='unchanged')
+
+    if len(first_case.shape) == 4:
+        first_case = first_case[:, :, :, 0]  # sometimes extra dims, remove
+
+    if categorical:
+        first_case = to_channels(first_case, dtype=dtype)
+        rows, cols, depth, channels = first_case.shape
+        images = np.zeros((num, rows, cols, depth, channels), dtype=dtype)
+    else:
+        rows, cols, depth = first_case.shape
+        images = np.zeros((num, rows, cols, depth), dtype=dtype)
+
+    for i, inName in enumerate(tqdm(imageNames)):
+        niftiImage = nib.load(inName)
+        inImage = niftiImage.get_fdata(caching='unchanged')  # read disk only
+        affine = niftiImage.affine
+
+        if len(inImage.shape) == 4:
+            inImage = inImage[:, :, :, 0]  # sometimes extra dims in HipMRI_study data
+
+        inImage = inImage[:, :, :depth]  # clip slices
+        inImage = inImage.astype(dtype)
+
+        if normImage:
+            inImage = (inImage - inImage.mean()) / (inImage.std() + 1e-8)
+
+        if categorical:
+            inImage = to_channels(inImage, dtype=dtype)
+            images[i, :inImage.shape[0], :inImage.shape[1], :inImage.shape[2], :] = inImage
+        else:
+            images[i, :inImage.shape[0], :inImage.shape[1], :inImage.shape[2]] = inImage
+
+        affines.append(affine)
+
+        if i > 20 and early_stop:
+            break
+
+    if getAffines:
+        return images, affines
+    else:
+        return images
+
+class HipMRI3DDataset(Dataset):
+    def __init__(self, image_paths, mask_paths):
+        # Pre-load all 3D volumes and masks directly into system RAM
+        self.images = load_data_3D(image_paths, normImage=True, early_stop=False)
+        self.masks = load_data_3D(mask_paths, categorical=True, dtype=np.uint8, early_stop=False)
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, idx):
+        img = self.images[idx]
+        mask = self.masks[idx]
+
+        # PyTorch Conv3d expects (Channels, Depth, Height, Width)
+        # Images from loader are (H, W, D), permute to (D, H, W) and add channel dim -> (1, D, H, W)
+        img_tensor = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(0).float()
+
+        # Masks from loader are (H, W, D, C), permute to (C, D, H, W)
+        mask_tensor = torch.from_numpy(mask).permute(3, 2, 0, 1).float()
+
+        return img_tensor, mask_tensor
