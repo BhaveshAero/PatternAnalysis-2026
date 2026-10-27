@@ -94,7 +94,7 @@ class DoubleConv3D(nn.Module):
         return self.double_conv(x)
 
 class UNet3D(nn.Module):
-    def __init__(self, in_channels=1, out_classes=6, base_filters=32):
+    def __init__(self, in_channels=1, out_classes=6, base_filters=16):
         super().__init__()
         """ Model architecture is identical to 2D """
         # Encoder

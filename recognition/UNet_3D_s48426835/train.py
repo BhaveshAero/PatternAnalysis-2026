@@ -115,7 +115,7 @@ def train_model_3d(base_data_dir, num_epochs=30, batch_size=1, learning_rate=1e-
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
-    model = UNet3D(in_channels=1, out_classes=6, base_filters=32).to(device)
+    model = UNet3D(in_channels=1, out_classes=6, base_filters=16).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
     class_weights = torch.tensor([0.1, 1.0, 1.0, 1.0, 1.0, 50.0]).to(device)
@@ -128,8 +128,8 @@ def train_model_3d(base_data_dir, num_epochs=30, batch_size=1, learning_rate=1e-
     for epoch in range(num_epochs):
         model.train()
         for images, masks in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs}"):
-            images = images[:, :, :, :128, :128].to(device)
-            masks = masks[:, :, :, :128, :128].to(device)
+            images = images.to(device)
+            masks = masks.to(device)
 
             optimizer.zero_grad()
 
@@ -146,8 +146,8 @@ def train_model_3d(base_data_dir, num_epochs=30, batch_size=1, learning_rate=1e-
 
         with torch.no_grad():
             for val_images, val_masks in val_loader:
-                val_images = val_images[:, :, :, :128, :128].to(device)
-                val_masks = val_masks[:, :, :, :128, :128].to(device)
+                val_images = val_images.to(device)
+                val_masks = val_masks.to(device)
 
                 with autocast('cuda'):
                     val_outputs = model(val_images)
