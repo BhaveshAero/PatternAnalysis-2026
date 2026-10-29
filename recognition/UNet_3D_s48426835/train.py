@@ -164,3 +164,9 @@ def train_model_3d(base_data_dir, num_epochs=30, batch_size=1, learning_rate=1e-
             best_prostate_dice = avg_prostate_dice
             torch.save(model.state_dict(), 'unet3d_best.pth')
             print("New best prostate score! Overwriting 3D weights.")
+
+if __name__ == "__main__":
+    data_dir = './training data' # Adjust to your base directory
+    # Choose which model to train:
+    # train_model(data_dir)
+    train_model_3d(data_dir)

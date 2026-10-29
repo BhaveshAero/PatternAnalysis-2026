@@ -21,6 +21,10 @@ def evaluate_and_visualize(base_data_dir, weights_path):
     # Load test data and model
     _, _, test_loader = get_dataloaders(base_data_dir, batch_size=4)
     model = UNet2D(in_channels=1, out_classes=6).to(device)
+
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"2D U-Net Total Trainable Parameters: {total_params:,}")
+
     model.load_state_dict(torch.load(weights_path, map_location=device, weights_only=True))
     model.eval()
 
@@ -57,6 +61,7 @@ def evaluate_and_visualize(base_data_dir, weights_path):
     plt.imshow(preds[0], cmap='nipy_spectral')
 
     plt.tight_layout()
+    plt.savefig("2d_prediction_output.png", bbox_inches='tight', dpi=300)
     plt.show()
 
 def evaluate_patient_volume(patient_loader, weights_path, target_class_idx=1):
@@ -113,6 +118,10 @@ def evaluate_patient_volume_3d(test_loader_3d, weights_path, target_class_idx=5)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     model = UNet3D(in_channels=1, out_classes=6, base_filters=16).to(device)
+
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"3D U-Net Total Trainable Parameters: {total_params:,}")
+
     model.load_state_dict(torch.load(weights_path, map_location=device, weights_only=True))
     model.eval()
 
@@ -157,8 +166,9 @@ def evaluate_patient_volume_3d(test_loader_3d, weights_path, target_class_idx=5)
             plt.subplot(1, 3, 3)
             plt.title(f"3D Model Prediction (Slice {mid_z})")
             plt.imshow(volume_preds[mid_z], cmap='nipy_spectral')
-
+            
             plt.tight_layout()
+            plt.savefig(f"3d_prediction_slice_{mid_z}.png", bbox_inches='tight', dpi=300)
             plt.show()
             break
 
@@ -167,3 +177,4 @@ def evaluate_patient_volume_3d(test_loader_3d, weights_path, target_class_idx=5)
 if __name__ == "__main__":
     data_dir = './training data/keras_slices_data'
     evaluate_and_visualize(data_dir, "unet2d_baseline.pth")
+    evaluate_patient_volume_3d('./training data', 'unet3d_best.pth')
