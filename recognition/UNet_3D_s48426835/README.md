@@ -51,3 +51,30 @@ The architectures used for both the 2D and 3D models are UNets. These models inv
 
 * **Next experiment**: Full 3D vs 2D comparison on the held-out split, with per-region (base/mid/apex) Dice.
 * **Fallback**: If full-volume 3D training does not fit in memory or converge, switch to patch-based 3D training. If the 3D model still misses Dice 0.70, report the result honestly with a failure analysis. The dilemma investigation (where context helps and where it doesn’t) still earns marks.
+
+## Dependencies
+
+| **Dependency** | **Version Number** |
+|:---------------|:-------------------|
+| Python         | 3.14.7             |
+| Torch (CuDA)   | 2.14.0+cu126       |
+| Numpy          | 2.5.3              |
+| Tqdm           | 4.70.1             |
+| Nibabel        | 5.4.2              |
+| Matplotlib     | 3.11.2             |
+
+## Reproducibility of Results
+Seed values were completely randomised between trials, thusly the exact same result can't be reliably reproduced. Furthermore, 3D model was trained on BF16 using torch.amp meaning that reproducibility with that cannot also be guaranteed due to floating point precision.
+
+## Input and output examples
+
+### 3D:
+![Input slice against a segemented output slice (3D)](./assets/inputOutput3D.png)
+
+### 2D:
+![Input slice against a segemented output slice (2D)](./assets/inputOutput2D.png)
+
+## Preprocessing
+3D Nifti volumes were loaded and z-score normalised to standardise intensities. Labels were one-hot encoded for the 6 target classes.
+
+The dataset was split strictly at the patient level (e.g., 168 training volumes, 21 validation volumes, 22 test volumes). This prevents cross-patient data leakage, as splitting by individual slices would cause overlapping anatomy between training and test sets
