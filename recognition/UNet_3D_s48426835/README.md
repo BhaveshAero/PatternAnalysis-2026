@@ -15,7 +15,13 @@ between the 2D and 3D UNets to assess if the additional performance accuracy war
 ### Algorithm:
 The architectures used for both the 2D and 3D models are UNets. These models involve convolving a large context down to a bottleneck where key features are identified, these features are then upscaled and mapped to features from the original through provided skip connections. The 3D network adapts these methods through 3D convolution and 3D max pooling to capture spacial continuity across multiple slices.
 
-![3D UNet Architecture](3Darchitecture.png)
+### 2D:
+![2D UNet Architecture](./assets/unet2dArchitecture.png)
+
+### 3D:
+![3D UNet Architecture](./assets/unet3dArchitecture.png)
+
+<!-- The above 2 representation were generated using Claude -->
 
 ## Feasibility Review
 
@@ -78,3 +84,20 @@ Seed values were completely randomised between trials, thusly the exact same res
 3D Nifti volumes were loaded and z-score normalised to standardise intensities. Labels were one-hot encoded for the 6 target classes.
 
 The dataset was split strictly at the patient level (e.g., 168 training volumes, 21 validation volumes, 22 test volumes). This prevents cross-patient data leakage, as splitting by individual slices would cause overlapping anatomy between training and test sets
+
+## Investigation of the Open Research Dilemma
+
+### Quantitative benchmarking
+
+| **Metric**  | **Baseline (2D UNet)** | **Proposed (3D UNet)** |
+|:------------|:-----------------------|:-----------------------|
+| Global Dice | 0.8542                 | 0.8810                 |
+| Apex Dice   | 0.0000                 | 0.7424                 |
+| Mid Dice    | 0.8571                 | 0.9478                 |
+| Base Dice   | 0.3855                 | 0.5697                 |
+
+### Resource profiling
+| **Model** | **Parameter Count** | **Peak GPU VRAM**     | **Inference Latency** |
+|:----------|:--------------------|:----------------------|:----------------------|
+| 2D UNet   | 31,036,806          | 7.3GB (16 batch size) | 1.2 seconds           |
+| 3D UNet   | 5,646,470           | 9.1GB (1 batch size)  | 6.5 seconds           |
