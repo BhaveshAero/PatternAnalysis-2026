@@ -137,3 +137,45 @@ The dataset, ***HipMRI*** is found on the rangpur cluster, it has already been p
 |:----------|:--------------------|:----------------------|:----------------------|
 | 2D UNet   | 31,036,806          | 7.3GB (16 batch size) | 1.2 seconds           |
 | 3D UNet   | 5,646,470           | 9.1GB (1 batch size)  | 6.5 seconds           |
+
+## Usage Instructions
+To replicate the experiments and run the models, ensure your data is located in the paths specified at `./training data/` with the appropriate file structure.
+
+1. **Training the Models:**
+   * To train the baseline 2D U-Net, run: `python train.py` (This will execute `train_model()`).
+   * To train the proposed 3D U-Net, execute the 3D training routine: `python train.py` (Ensure the `__main__` block call is edited to run `train_model_3d()`).
+   * Both models utilise `dataset.py` for data loading and preprocessing, enforcing strict patient-level separation to prevent leakage.
+2. **Evaluation and Inference:**
+   * Run `python predict.py` to evaluate the saved weights (`unet2d_baseline.pth` and `unet3d_best.pth`). 
+   * This script loads the architectures from `modules.py`, processes the test volumes, and outputs the global and per-slice (Base, Mid, Apex) Dice scores, alongside visual predictions which are saved locally.
+
+## Qualitative Error Autopsy
+To investigate the spatial context dilemma, 3 boundary failure cases were isolated and analyzed to diagnose edge-case triggers.
+
+***Note on Data Hygiene***: During evaluation, a spatial orientation mismatch was identified between the provided 2D slice dataset and the 3D volumetric dataset. Therefore, rather than a perfectly registered 1:1 slice comparison, the models are compared on their contextual ability to segment the specific anatomical regions (Base and Apex).
+
+### Case 1: The Apex Boundary
+![Apex Failure Case 2D](./assets/2DComparison_2d_apex_failure.png)
+![Apex Failure Case 3D](./assets/3DComparison_apex_failure.png)
+* **Diagnosis:** At the inferior apex, the prostate blends into the surrounding pelvic floor muscles with extremely low soft-tissue contrast. 
+* **2D vs 3D Performance:** The 2D baseline completely failed to detect the prostate (Dice: 0.0000), treating the faint tissue as background. The 3D U-Net successfully leveraged the volumetric continuity from the mid-gland to maintain a contour (Dice: 0.7424), though it still exhibits minor over-contouring into the surrounding musculature.
+
+### Case 2: The Base Boundary
+![Mid Failure Case 2D](./assets/2DComparison_2d_base_failure.png)
+![Mid Failure Case 3D](./assets/3DComparison_base_failure.png)
+* **Diagnosis:** At the base of the prostate, the boundary between the prostate and the bladder wall is millimeter-thin. 
+* **2D vs 3D Performance:** The 2D model suffered from boundary leakage into the bladder mucosa due to a lack of z-axis context. The 3D model improved the boundary definition (Dice: 0.5697 vs 0.3855), effectively using the spatial gradient of the bladder volume above to terminate the prostate contour, mitigating the risk of radiation cystitis.
+
+### Case 3: Complete misclassification (False Positives)
+![Mid Failure Case 2D](./assets/2DComparison_2d_apex_failure.png)
+* **Diagnosis:** The 2D U-Net occasionally completely misclassified regions, for example, the bladder as prostrate. 
+* **2D vs 3D Performance:** The 3D U-Net eliminated these topologically invalid scenarios entirely (can't change from a bladder to a prostate within a single slice), as the 3D max-pooling and volumetric kernels enforced spatial continuity, suppressing isolated missmatching classifications between slices.
+
+## Engineering Recommendation
+**To the Project Manager:** 
+The proposed 3D U-Net resolves the primary clinical boundary dilemma present in the 2D baseline. While the 2D U-Net achieves an acceptable global Dice score (0.8542), it masks catastrophic failures at the apex (0.0000) and base (0.3855), rendering its contours clinically hazardous for radiotherapy planning due to the risk of irradiating the bladder or missing the tumor apex. 
+
+The 3D U-Net rectifies these boundary failures, drastically improving apex detection (0.7424) and eliminating disconnected anatomical hallucinations. This clinical gain comes at a resource trade-off: inference time increases from 1.2s to 6.5s per volume, and the batch size must be restricted to 1 to fit within the 9.1GB VRAM footprint. Given that clinical contouring is not a microsecond-latency task, this computational cost is completely justified. I recommend advancing the 3D U-Net prototype toward clinical translation, as the spatial context is vital for safe external-beam radiotherapy planning.
+
+## Artificial Intelligence Usage Disclosure 
+* Claude: Generating model architecture for the readme.md, assisted with .md formatting.
