@@ -85,6 +85,42 @@ Seed values were completely randomised between trials, thusly the exact same res
 
 The dataset was split strictly at the patient level (e.g., 168 training volumes, 21 validation volumes, 22 test volumes). This prevents cross-patient data leakage, as splitting by individual slices would cause overlapping anatomy between training and test sets
 
+## Repo structure
+
+### File structure:
+```
+PatternAnalysis-2026/
+├── recognition/
+│   ├── UNet_3D_s48426835/
+│   │   ├── assets/
+│   │   │   └── ...
+│   │   ├── training data/ (not included in repo, must be downloaded)
+│   │   │   ├── keras_slices_data/
+│   │   │   │   └── ...
+│   │   │   ├── semantic_labels_only/
+│   │   │   │   └── ...
+│   │   │   ├── semantic_MRs/
+│   │   │   │   └── ...
+│   │   │   ├── data_use_agreement.txt
+│   │   │   └── ...
+│   │   ├── dataset.py
+│   │   ├── modules.py
+│   │   ├── predict.py
+│   │   ├── README.md
+│   │   └── train.py
+│   └── README.md
+├── .gitignore
+└── README.md
+```
+
+### Files:
+* **dataset.py** : contains all the code for loading the HipMRI scan data.
+* **modules.py** : contains the model structures for the 2D and 3D UNets
+* **predict.py** : contains code that evaluates the models by Dice in addition to rendering the graphs.
+* **train.py** : contains code that trains the respective models.
+
+The dataset, ***HipMRI*** is found on the rangpur cluster, it has already been preprocessed by staff for use, it is not supplied in this repo due to file size constraints.
+
 ## Investigation of the Open Research Dilemma
 
 ### Quantitative benchmarking

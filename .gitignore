@@ -19,3 +19,5 @@ data/
 
 # Ignore license agreements
 *.txt
+
+.idea/
