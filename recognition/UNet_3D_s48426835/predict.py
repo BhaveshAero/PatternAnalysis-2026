@@ -1,6 +1,7 @@
 import os
 import torch
 import argparse
+import time
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import numpy as np
@@ -132,14 +133,20 @@ def evaluate_patient_volume_3d(test_loader_3d, weights_path, target_class_idx=5)
     total_global_dice = 0.0
     num_volumes = 0
 
+    torch.cuda.reset_peak_memory_stats(device)  # Reset VRAM tracker
+    all_latencies = []
+
     with torch.no_grad():
         for images, masks in test_loader_3d:
             images = images.to(device)
             masks = masks.numpy()
 
+            start_time = time.time()  # Start latency timer
             outputs = model(images)
-
             preds = torch.argmax(outputs, dim=1).cpu().numpy()
+            inference_time = time.time() - start_time  # End latency timer
+            all_latencies.append(inference_time)
+            
             masks_argmax = np.argmax(masks, axis=1)
 
             volume_preds = preds[0]
@@ -150,7 +157,6 @@ def evaluate_patient_volume_3d(test_loader_3d, weights_path, target_class_idx=5)
             num_volumes += 1
 
             if num_volumes == 1 :
-
                 slice_dices = []
                 for z in range(volume_preds.shape[0]):
                     if np.any(volume_masks[z] == target_class_idx):
@@ -183,7 +189,13 @@ def evaluate_patient_volume_3d(test_loader_3d, weights_path, target_class_idx=5)
 
     # Calculate and print the true test set average
     avg_test_dice = total_global_dice / num_volumes
+    avg_latency = np.mean(all_latencies)
+    peak_vram = torch.cuda.max_memory_allocated(device) / (1024 ** 3)
+
+    print("\n--- Final 3D Test Set Evaluation ---")
     print(f"Average 3D Test Set Dice Score: {avg_test_dice:.4f}")
+    print(f"Average Inference Latency: {avg_latency:.4f}s per volume")
+    print(f"Peak VRAM Utilized: {peak_vram:.2f}GB")
 
     return volume_preds, volume_masks
 
