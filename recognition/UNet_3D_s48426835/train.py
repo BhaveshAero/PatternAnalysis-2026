@@ -68,7 +68,12 @@ def train_model(base_data_dir, num_epochs=30, batch_size=16, learning_rate=1e-4)
 
             optimizer.zero_grad()
             outputs = model(images)
-            loss = criterion(outputs, masks)
+            ce_loss = criterion(outputs, masks)
+
+            soft_preds = F.softmax(outputs, dim=1)
+            dice_loss = 1.0 - per_class_dice(soft_preds, masks).mean()
+
+            loss = ce_loss + dice_loss
             loss.backward()
             optimizer.step()
 
@@ -141,8 +146,8 @@ def train_model_3d(base_data_dir, num_epochs=30, batch_size=1, learning_rate=1e-
                 outputs = model(images)
                 ce_loss = criterion(outputs, masks)
 
-                preds_one_hot = F.one_hot(torch.argmax(outputs, dim=1), num_classes=6).permute(0, 4, 1, 2, 3).float()
-                dice_loss = 1.0 - per_class_dice_3d(preds_one_hot, masks).mean()
+                soft_preds = F.softmax(outputs, dim=1)
+                dice_loss = 1.0 - per_class_dice_3d(soft_preds, masks).mean()
 
                 loss = ce_loss + dice_loss
 
