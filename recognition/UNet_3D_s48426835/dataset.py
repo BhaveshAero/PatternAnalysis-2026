@@ -119,7 +119,7 @@ def get_dataloaders(base_dir, batch_size=16):
                                       os.path.join(base_dir, 'keras_slices_seg_test'))
 
     # Create DataLoaders
-    train_loader = DataLoader(HipMRIDataset(train_imgs, train_masks, augment=true), batch_size=batch_size, shuffle=True,
+    train_loader = DataLoader(HipMRIDataset(train_imgs, train_masks, augment=True), batch_size=batch_size, shuffle=True,
                               num_workers=0, pin_memory=False)
     val_loader = DataLoader(HipMRIDataset(val_imgs, val_masks), batch_size=batch_size, shuffle=False, num_workers=0,
                             pin_memory=False)

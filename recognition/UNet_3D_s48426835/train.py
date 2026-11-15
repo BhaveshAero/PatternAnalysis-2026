@@ -98,7 +98,7 @@ def train_model(base_data_dir, num_epochs=30, batch_size=16, learning_rate=1e-4)
 
         if avg_prostate_dice > best_prostate_dice:
             best_prostate_dice = avg_prostate_dice
-            torch.save(model.state_dict(), 'unet2d_baseline_withAugment.pth')
+            torch.save(model.state_dict(), 'unet2d_baseline.pth')
             print("New best prostate score! Overwriting baseline weights.")
 
 
@@ -176,7 +176,7 @@ def train_model_3d(base_data_dir, num_epochs=30, batch_size=1, learning_rate=1e-
 
         if avg_prostate_dice > best_prostate_dice:
             best_prostate_dice = avg_prostate_dice
-            #torch.save(model.state_dict(), 'unet3d_best.pth')
+            torch.save(model.state_dict(), 'unet3d_best.pth')
             print("New best prostate score! Overwriting 3D weights.")
 
 if __name__ == "__main__":

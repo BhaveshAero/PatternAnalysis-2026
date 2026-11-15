@@ -233,7 +233,15 @@ if __name__ == "__main__":
             if args.data_dir
             else "./training data/keras_slices_data"
         )
-        evaluate_and_visualize(data_dir_2d, "unet2d_baseline.pth")
+        weights_file = "unet2d_baseline.pth"
+
+        print("--- Running 2D Visualisation ---")
+        evaluate_and_visualize(data_dir_2d, weights_file)
+
+        print("\n--- Running 2D Volumetric Evaluation ---")
+        _, _, test_loader = get_dataloaders(data_dir_2d, batch_size=4)
+
+        evaluate_patient_volume(test_loader, weights_file, target_class_idx=5)
 
     if args.mode in ["3d", "both"]:
         data_dir_3d = args.data_dir if args.data_dir else "./training data"
