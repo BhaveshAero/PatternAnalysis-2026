@@ -19,6 +19,25 @@ def calculate_dice(y_true, y_pred, class_index, smooth=1e-5):
 
     return (2.0 * intersection + smooth) / (denominator + smooth)
 
+
+def calculate_per_class_metrics(y_true, y_pred, num_classes=6, smooth=1e-5):
+    """Calculates and returns Dice and IoU arrays for every class."""
+    dices, ious = [], []
+    for c in range(num_classes):
+        y_true_c = (y_true == c).astype(np.float32)
+        y_pred_c = (y_pred == c).astype(np.float32)
+
+        intersection = np.sum(y_true_c * y_pred_c)
+        sum_both = np.sum(y_true_c) + np.sum(y_pred_c)
+        union = sum_both - intersection
+
+        dice = (2.0 * intersection + smooth) / (sum_both + smooth)
+        iou = (intersection + smooth) / (union + smooth)
+        dices.append(dice)
+        ious.append(iou)
+
+    return np.array(dices), np.array(ious)
+
 def evaluate_and_visualize(base_data_dir, weights_path):
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -34,7 +53,7 @@ def evaluate_and_visualize(base_data_dir, weights_path):
     model.eval()
 
     # Fetch one test batch
-    images, masks = next(iter(test_loader))
+    images, masks, _ = next(iter(test_loader))
 
     # Crop the tensors to 256x128 BEFORE passing them to the model
     images = images[:, :, :, :128].to(device)
@@ -50,7 +69,6 @@ def evaluate_and_visualize(base_data_dir, weights_path):
     images = images.cpu().numpy()
     masks = torch.argmax(masks, dim=1).cpu().numpy()
 
-    # Visualize the first sample in the batch[cite: 5, 13] (Gemini: "Generate matplotlib code for rendering these graphs, as per the code in this snippet"
     plt.figure(figsize=(15, 5))
 
     plt.subplot(1, 3, 1)
@@ -69,60 +87,101 @@ def evaluate_and_visualize(base_data_dir, weights_path):
     plt.savefig("2d_prediction_output.png", bbox_inches='tight', dpi=300)
     plt.show()
 
-def evaluate_patient_volume(patient_loader, weights_path, target_class_idx=1):
+
+def evaluate_patient_volume(test_loader, weights_path, target_class_idx=5):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     model = UNet2D(in_channels=1, out_classes=6).to(device)
     model.load_state_dict(torch.load(weights_path, map_location=device, weights_only=True))
     model.eval()
 
-    all_preds = []
-    all_masks = []
+    patient_preds = {}
+    patient_masks = {}
 
-    torch.cuda.reset_peak_memory_stats(device)
-    total_volume_latency = 0.0
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats(device)
+
+    total_inference_time = 0.0
 
     with torch.no_grad():
-        for images, masks in patient_loader:  # Assumes loader yields ordered slices for 1 patient
+        for images, masks, filenames in test_loader:
             images = images[:, :, :, :128].to(device)
             masks = masks[:, :, :, :128].numpy()
 
             start_time = time.time()
             outputs = model(images)
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+            total_inference_time += (time.time() - start_time)
+
             preds = torch.argmax(outputs, dim=1).cpu().numpy()
-            total_volume_latency += (time.time() - start_time)
-
-            all_preds.append(preds)
             masks_argmax = np.argmax(masks, axis=1)
-            all_masks.append(masks_argmax)
 
-    # Stack 2D slices into a 3D volume: (Z, H, W)
-    volume_preds = np.concatenate(all_preds, axis=0)
-    volume_masks = np.concatenate(all_masks, axis=0)
+            # Group slices by patient ID using the filename
+            for i, filename in enumerate(filenames):
+                patient_id = "_".join(filename.split("_")[:2])
+                if patient_id not in patient_preds:
+                    patient_preds[patient_id] = []
+                    patient_masks[patient_id] = []
 
-    # Global 3D Dice Score
-    global_dice = calculate_dice(volume_masks, volume_preds, class_index=target_class_idx)
-    print(f"Global 3D Target Dice Score: {global_dice:.4f}")
+                patient_preds[patient_id].append(preds[i])
+                patient_masks[patient_id].append(masks_argmax[i])
 
-    # Per-Slice Dice Score (for Base, Mid, Apex analysis)
-    slice_dices = []
-    for z in range(volume_preds.shape[0]):
-        # Only evaluate slices where the ground truth contains the target class
-        if np.any(volume_masks[z] == target_class_idx):
-            sdice = calculate_dice(volume_masks[z], volume_preds[z], class_index=target_class_idx)
-            slice_dices.append((z, sdice))
+    # Tracking variables for final averages
+    all_patient_dices = []
+    all_patient_ious = []
+    all_base = []
+    all_mid = []
+    all_apex = []
 
-    if slice_dices:
-        print(f"Base Slice Dice: {slice_dices[0][1]:.4f}")
-        print(f"Mid-Volume Slice Dice: {slice_dices[len(slice_dices) // 2][1]:.4f}")
-        print(f"Apex Slice Dice: {slice_dices[-1][1]:.4f}")
+    # Evaluate each patient individually
+    for patient_id in patient_preds.keys():
+        volume_preds = np.stack(patient_preds[patient_id], axis=0)
+        volume_masks = np.stack(patient_masks[patient_id], axis=0)
 
+        # Get 6-class metrics and store them
+        dices, ious = calculate_per_class_metrics(volume_masks, volume_preds, num_classes=6)
+        all_patient_dices.append(dices)
+        all_patient_ious.append(ious)
 
-    peak_vram = torch.cuda.max_memory_allocated(device) / (1024 ** 3)
-    print(f"2D Inference Latency: {total_volume_latency:.4f}s per volume")
-    print(f"2D Peak VRAM Utilized: {peak_vram:.2f}GB")
+        # Calculate Base, Mid, and Apex scores and store them
+        slice_dices = []
+        for z in range(volume_preds.shape[0]):
+            if np.any(volume_masks[z] == target_class_idx):
+                sdice = calculate_dice(volume_masks[z], volume_preds[z], class_index=target_class_idx)
+                slice_dices.append((z, sdice))
 
-    return volume_preds, volume_masks
+        if slice_dices:
+            all_base.append(slice_dices[0][1])
+            all_mid.append(slice_dices[len(slice_dices) // 2][1])
+            all_apex.append(slice_dices[-1][1])
+
+    # --- Print Final Averages ---
+    avg_dices = np.mean(all_patient_dices, axis=0)
+    avg_ious = np.mean(all_patient_ious, axis=0)
+    class_names = ["Background", "Body Outline", "Bone", "Bladder", "Rectum", "Prostate"]
+
+    print("\n=== FINAL 2D TEST SET AVERAGES ===")
+    print(f"{'Anatomy (Class)':<18} | {'Avg Dice':<8} | {'Avg IoU':<8}")
+    print("-" * 40)
+    for c in range(6):
+        print(f"{class_names[c]:<18} | {avg_dices[c]:<8.4f} | {avg_ious[c]:<8.4f}")
+
+    print("\n--- Boundary Metrics ---")
+    if all_base: print(f"Average Base Slice Dice: {np.mean(all_base):.4f}")
+    if all_mid: print(f"Average Mid-Volume Slice Dice: {np.mean(all_mid):.4f}")
+    if all_apex: print(f"Average Apex Slice Dice: {np.mean(all_apex):.4f}")
+
+    print("\n--- 2D Global Resource Profiling ---")
+    if torch.cuda.is_available():
+        peak_vram = torch.cuda.max_memory_allocated(device) / (1024 ** 3)
+        print(f"2D Peak VRAM Utilized: {peak_vram:.2f}GB")
+
+    num_patients = len(patient_preds)
+    latency_per_volume = total_inference_time / num_patients if num_patients > 0 else 0
+    print(f"2D Inference Latency: {latency_per_volume:.4f}s per patient volume")
+
+    return patient_preds, patient_masks
 
 
 def evaluate_patient_volume_3d(test_loader_3d, weights_path, target_class_idx=5):

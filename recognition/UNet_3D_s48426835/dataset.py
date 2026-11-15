@@ -7,7 +7,7 @@ import nibabel as nib
 from torch.utils.data import Dataset, DataLoader
 
 def to_channels(arr: np.ndarray, num_classes=6, dtype=np.uint8) -> np.ndarray:
-    """Fixed version that enforces exactly 6 classes regardless of slice content."""
+    """Converts 2D slice into one-hot encoded channel array."""
     res = np.zeros(arr.shape + (num_classes,), dtype=dtype)
     for c in range(num_classes):
         res[..., c][arr == c] = 1
@@ -68,6 +68,7 @@ def load_data_2D(imageNames, normImage=False, categorical=False, dtype=np.float3
 class HipMRIDataset(Dataset):
     def __init__(self, image_paths, mask_paths, augment=False):
         # Pre-load all images and masks directly into system RAM
+        self.image_paths = image_paths
         self.images = load_data_2D(image_paths, normImage=True, early_stop=False)
         self.masks = load_data_2D(mask_paths, categorical=True, dtype=np.uint8, early_stop=False)
         self.augment = augment
@@ -97,7 +98,10 @@ class HipMRIDataset(Dataset):
                 img_tensor = torch.flip(img_tensor, dims=[1])
                 mask_tensor = torch.flip(mask_tensor, dims=[1])
 
-        return img_tensor, mask_tensor
+        # <-- Added: Extract the filename
+        filename = os.path.basename(self.image_paths[idx])
+
+        return img_tensor, mask_tensor, filename
 
 
 def get_dataloaders(base_dir, batch_size=16):

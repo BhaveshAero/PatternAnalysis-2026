@@ -31,8 +31,6 @@ def get_file_paths(directory):
 
 
 def train_model(base_data_dir, num_epochs=30, batch_size=16, learning_rate=1e-4):
-    """This code block was implemented with the aid of Gemini with the following prompt:"""
-    """Give me an example code block on how I would implement model training for a 2D Unet with a train/val split, with this model architecture"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Training on device: {device}")
 
@@ -61,7 +59,7 @@ def train_model(base_data_dir, num_epochs=30, batch_size=16, learning_rate=1e-4)
     # 4. Training Loop
     for epoch in range(num_epochs):
         model.train()
-        for images, masks in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs}"):
+        for images, masks, _ in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs}"):
             # Crop tensors to 256x128 before forward pass
             images = images[:, :, :, :128].to(device)
             masks = masks[:, :, :, :128].to(device)
@@ -82,7 +80,7 @@ def train_model(base_data_dir, num_epochs=30, batch_size=16, learning_rate=1e-4)
         epoch_prostate_dice = 0.0
 
         with torch.no_grad():
-            for val_images, val_masks in val_loader:
+            for val_images, val_masks, _ in val_loader:
                 # Crop validation tensors
                 val_images = val_images[:, :, :, :128].to(device)
                 val_masks = val_masks[:, :, :, :128].to(device)
@@ -103,7 +101,6 @@ def train_model(base_data_dir, num_epochs=30, batch_size=16, learning_rate=1e-4)
 
 
 def train_model_3d(base_data_dir, num_epochs=30, batch_size=1, learning_rate=1e-4):
-    """This code block is an altered version of the code block above"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Training 3D U-Net on device: {device}")
 
