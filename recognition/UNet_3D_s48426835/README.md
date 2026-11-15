@@ -70,7 +70,7 @@ The architectures used for both the 2D and 3D models are UNets. These models inv
 | Matplotlib     | 3.11.2             |
 
 ## Reproducibility of Results
-Seed values were completely randomised between trials, thusly the exact same result can't be reliably reproduced. Furthermore, 3D model was trained on BF16 using torch.amp meaning that reproducibility with that cannot also be guaranteed due to floating point precision.
+Seed values were completely randomised between trials, thusly the exact same result can't be reliably reproduced. Furthermore, 3D model was trained on BF16 using torch.amp meaning that reproducibility with that cannot also be guaranteed due to floating point precision. However, all exact library and package versions used to generate these results have been locked and provided in `requirements.txt` to ensure a consistent execution environment.
 
 ## Input and output examples
 
@@ -135,19 +135,24 @@ The dataset, ***HipMRI*** is found on the rangpur cluster, it has already been p
 ### Resource profiling
 | **Model** | **Parameter Count** | **Peak GPU VRAM**     | **Inference Latency** |
 |:----------|:--------------------|:----------------------|:----------------------|
-| 2D UNet   | 31,036,806          | 7.3GB (16 batch size) | 1.2 seconds           |
-| 3D UNet   | 5,646,470           | 9.1GB (1 batch size)  | 6.5 seconds           |
+| 2D UNet   | 31,036,806          | 0.36 (1 batch size)   | 1.69 seconds          |
+| 3D UNet   | 5,646,470           | 4.06GB (1 batch size) | 0.1336 seconds        |
+
+3D model architecture is significantly smaller than the 2D model, thereby resulting in faster inference.
 
 ## Usage Instructions
 To replicate the experiments and run the models, ensure your data is located in the paths specified at `./training data/` with the appropriate file structure.
 
 1. **Training the Models:**
-   * To train the baseline 2D U-Net, run: `python train.py` (This will execute `train_model()`).
-   * To train the proposed 3D U-Net, execute the 3D training routine: `python train.py` (Ensure the `__main__` block call is edited to run `train_model_3d()`).
-   * Both models utilise `dataset.py` for data loading and preprocessing, enforcing strict patient-level separation to prevent leakage.
+   * To train the baseline 2D U-Net, run: `python train.py --mode 2d`.
+   * To train the proposed 3D U-Net, run: `python train.py --mode 3d`.
 2. **Evaluation and Inference:**
-   * Run `python predict.py` to evaluate the saved weights (`unet2d_baseline.pth` and `unet3d_best.pth`). 
-   * This script loads the architectures from `modules.py`, processes the test volumes, and outputs the global and per-slice (Base, Mid, Apex) Dice scores, alongside visual predictions which are saved locally.
+   *   To evaluate the 2D model (loads `unet2d_baseline.pth`), run:
+       `python predict.py --mode 2d`
+   *   To evaluate the 3D model (loads `unet3d_best.pth`), run:
+       `python predict.py --mode 3d`
+   *   To evaluate both models sequentially, run:
+       `python predict.py --mode both`
 
 ## Qualitative Error Autopsy
 To investigate the spatial context dilemma, 3 boundary failure cases were isolated and analyzed to diagnose edge-case triggers.
@@ -175,7 +180,10 @@ To investigate the spatial context dilemma, 3 boundary failure cases were isolat
 **To the Project Manager:** 
 The proposed 3D U-Net resolves the primary clinical boundary dilemma present in the 2D baseline. While the 2D U-Net achieves an acceptable global Dice score (0.8542), it masks catastrophic failures at the apex (0.0000) and base (0.3855), rendering its contours clinically hazardous for radiotherapy planning due to the risk of irradiating the bladder or missing the tumor apex. 
 
-The 3D U-Net rectifies these boundary failures, drastically improving apex detection (0.7424) and eliminating disconnected anatomical hallucinations. This clinical gain comes at a resource trade-off: inference time increases from 1.2s to 6.5s per volume, and the batch size must be restricted to 1 to fit within the 9.1GB VRAM footprint. Given that clinical contouring is not a microsecond-latency task, this computational cost is completely justified. I recommend advancing the 3D U-Net prototype toward clinical translation, as the spatial context is vital for safe external-beam radiotherapy planning.
+The 3D U-Net rectifies these boundary failures, drastically improving apex detection (0.7424) and eliminating disconnected anatomical hallucinations. Furthermore, due to a smaller model architecture in the 3D model it is highly resource efficient requiring only 4GB or VRAM and only 0.13s per full volume. I recommend advancing the 3D U-Net prototype toward clinical translation, as the spatial context is vital for safe external-beam radiotherapy planning.
+
+## Conclusion
+While the 2D U-Net offers a computationally simple baseline, it fails by severely underperforming at the critical apex and base boundaries. The 3D U-Net successfully resolves this lack of spatial context, enforcing volumetric continuity that drastically improves boundary contouring and eliminates isolated false positives, making it the safer and more viable architecture for automated radiotherapy.
 
 ## Artificial Intelligence Usage Disclosure 
 * Claude: Generating model architecture for the readme.md, assisted with .md formatting.
@@ -183,3 +191,4 @@ The 3D U-Net rectifies these boundary failures, drastically improving apex detec
 	* (train.py) - train_model : Give me an example code block on how I would implement model training for a 2D Unet with a train/val split, with this model architecture.
 	* (predict.py) - evaluate_and_visualise : Generate matplotlib code for rendering these graphs, as per the code in this snippet.
 	* Was additionally used to bugfix certain crashes that I couldn't figure out how to resolve on my own.
+    * I audited the AI-generated training loop by ensuring the cross-entropy and Dice loss properly decreased over epochs. I verified the matplotlib code by checking that the generated output masks anatomically aligned with the MRI inputs.
