@@ -18,6 +18,6 @@ __pycache__/
 data/
 
 # Ignore license agreements
-*.txt
+
 
 .idea/
