@@ -45,7 +45,7 @@ def evaluate_and_visualize(base_data_dir, weights_path):
     images = images.cpu().numpy()
     masks = torch.argmax(masks, dim=1).cpu().numpy()
 
-    # Visualize the first sample in the batch[cite: 5, 13]
+    # Visualize the first sample in the batch[cite: 5, 13] (Gemini: "Generate matplotlib code for rendering these graphs, as per the code in this snippet"
     plt.figure(figsize=(15, 5))
 
     plt.subplot(1, 3, 1)
@@ -125,6 +125,9 @@ def evaluate_patient_volume_3d(test_loader_3d, weights_path, target_class_idx=5)
     model.load_state_dict(torch.load(weights_path, map_location=device, weights_only=True))
     model.eval()
 
+    total_global_dice = 0.0
+    num_volumes = 0
+
     with torch.no_grad():
         for images, masks in test_loader_3d:
             images = images.to(device)
@@ -139,42 +142,63 @@ def evaluate_patient_volume_3d(test_loader_3d, weights_path, target_class_idx=5)
             volume_masks = masks_argmax[0]
 
             global_dice = calculate_dice(volume_masks, volume_preds, class_index=target_class_idx)
-            print(f"Global 3D Target Dice Score: {global_dice:.4f}")
+            total_global_dice += global_dice
+            num_volumes += 1
 
-            slice_dices = []
-            for z in range(volume_preds.shape[0]):
-                if np.any(volume_masks[z] == target_class_idx):
-                    sdice = calculate_dice(volume_masks[z], volume_preds[z], class_index=target_class_idx)
-                    slice_dices.append((z, sdice))
+            if num_volumes == 1 :
 
-            if slice_dices:
-                print(f"Base Slice Dice (Superior): {slice_dices[0][1]:.4f}")
-                print(f"Mid-Volume Slice Dice (Central): {slice_dices[len(slice_dices) // 2][1]:.4f}")
-                print(f"Apex Slice Dice (Inferior): {slice_dices[-1][1]:.4f}")
+                slice_dices = []
+                for z in range(volume_preds.shape[0]):
+                    if np.any(volume_masks[z] == target_class_idx):
+                        sdice = calculate_dice(volume_masks[z], volume_preds[z], class_index=target_class_idx)
+                        slice_dices.append((z, sdice))
 
-            mid_z = slice_dices[len(slice_dices) // 2][0] if slice_dices else volume_preds.shape[0] // 2
+                if slice_dices:
+                    print(f"Base Slice Dice (Superior): {slice_dices[0][1]:.4f}")
+                    print(f"Mid-Volume Slice Dice (Central): {slice_dices[len(slice_dices) // 2][1]:.4f}")
+                    print(f"Apex Slice Dice (Inferior): {slice_dices[-1][1]:.4f}")
 
-            plt.figure(figsize=(15, 5))
-            plt.subplot(1, 3, 1)
-            plt.title(f"3D MRI Input (Slice {mid_z})")
-            plt.imshow(images[0, 0, mid_z].cpu().numpy(), cmap='gray')
+                mid_z = slice_dices[len(slice_dices) // 2][0] if slice_dices else volume_preds.shape[0] // 2
 
-            plt.subplot(1, 3, 2)
-            plt.title(f"Ground Truth Mask (Slice {mid_z})")
-            plt.imshow(volume_masks[mid_z], cmap='nipy_spectral')
+                plt.figure(figsize=(15, 5))
+                plt.subplot(1, 3, 1)
+                plt.title(f"3D MRI Input (Slice {mid_z})")
+                plt.imshow(images[0, 0, mid_z].cpu().numpy(), cmap='gray')
 
-            plt.subplot(1, 3, 3)
-            plt.title(f"3D Model Prediction (Slice {mid_z})")
-            plt.imshow(volume_preds[mid_z], cmap='nipy_spectral')
-            
-            plt.tight_layout()
-            plt.savefig(f"3d_prediction_slice_{mid_z}.png", bbox_inches='tight', dpi=300)
-            plt.show()
-            break
+                plt.subplot(1, 3, 2)
+                plt.title(f"Ground Truth Mask (Slice {mid_z})")
+                plt.imshow(volume_masks[mid_z], cmap='nipy_spectral')
+
+                plt.subplot(1, 3, 3)
+                plt.title(f"3D Model Prediction (Slice {mid_z})")
+                plt.imshow(volume_preds[mid_z], cmap='nipy_spectral')
+
+                plt.tight_layout()
+                plt.savefig(f"3d_prediction_slice_{mid_z}.png", bbox_inches='tight', dpi=300)
+                plt.show()
+
+    # Calculate and print the true test set average
+    avg_test_dice = total_global_dice / num_volumes
+    print(f"Average 3D Test Set Dice Score: {avg_test_dice:.4f}")
 
     return volume_preds, volume_masks
 
+
 if __name__ == "__main__":
-    data_dir = './training data/keras_slices_data'
-    evaluate_and_visualize(data_dir, "unet2d_baseline.pth")
-    evaluate_patient_volume_3d('./training data', 'unet3d_best.pth')
+    data_dir_2d = './training data/keras_slices_data'
+    evaluate_and_visualize(data_dir_2d, "unet2d_baseline.pth")
+
+    data_dir_3d = './training data'
+    img_dir = os.path.join(data_dir_3d, 'semantic_MRs')
+    mask_dir = os.path.join(data_dir_3d, 'semantic_labels_only')
+
+    all_imgs = get_file_paths(img_dir)
+    all_masks = get_file_paths(mask_dir)
+
+    test_imgs = all_imgs[189:]
+    test_masks = all_masks[189:]
+
+    test_dataset_3d = HipMRI3DDataset(test_imgs, test_masks)
+    test_loader_3d = DataLoader(test_dataset_3d, batch_size=1, shuffle=False)
+
+    evaluate_patient_volume_3d(test_loader_3d, 'unet3d_best.pth')

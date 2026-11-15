@@ -30,10 +30,12 @@ def get_file_paths(directory):
 
 
 def train_model(base_data_dir, num_epochs=30, batch_size=16, learning_rate=1e-4):
+    """This code block was implemented with the aid of Gemini with the following prompt:"""
+    """Give me an example code block on how I would implement model training for a 2D Unet with a train/val split, with this model architecture"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Training on device: {device}")
 
-    # 1. Map paths exactly to the folder structure shown in image_f87b76.png
+    # 1. Map paths exactly to the folder structure
     train_img_paths = get_file_paths(os.path.join(base_data_dir, 'keras_slices_train'))
     train_msk_paths = get_file_paths(os.path.join(base_data_dir, 'keras_slices_seg_train'))
     val_img_paths = get_file_paths(os.path.join(base_data_dir, 'keras_slices_validate'))
@@ -95,6 +97,7 @@ def train_model(base_data_dir, num_epochs=30, batch_size=16, learning_rate=1e-4)
 
 
 def train_model_3d(base_data_dir, num_epochs=30, batch_size=1, learning_rate=1e-4):
+    """This code block is an altered version of the code block above"""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Training 3D U-Net on device: {device}")
 
@@ -166,6 +169,7 @@ def train_model_3d(base_data_dir, num_epochs=30, batch_size=1, learning_rate=1e-
             print("New best prostate score! Overwriting 3D weights.")
 
 if __name__ == "__main__":
+    # For marker, if wanting to train a different model.
     data_dir = './training data' # Adjust to your base directory
     # Choose which model to train:
     # train_model(data_dir)

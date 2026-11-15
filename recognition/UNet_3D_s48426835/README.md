@@ -179,3 +179,7 @@ The 3D U-Net rectifies these boundary failures, drastically improving apex detec
 
 ## Artificial Intelligence Usage Disclosure 
 * Claude: Generating model architecture for the readme.md, assisted with .md formatting.
+* Gemini:
+	* (train.py) - train_model : Give me an example code block on how I would implement model training for a 2D Unet with a train/val split, with this model architecture.
+	* (predict.py) - evaluate_and_visualise : Generate matplotlib code for rendering these graphs, as per the code in this snippet.
+	* Was additionally used to bugfix certain crashes that I couldn't figure out how to resolve on my own.
