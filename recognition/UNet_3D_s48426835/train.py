@@ -43,8 +43,8 @@ def train_model(base_data_dir, num_epochs=30, batch_size=16, learning_rate=1e-4)
     val_msk_paths = get_file_paths(os.path.join(base_data_dir, 'keras_slices_seg_validate'))
 
     # 2. Initialize Datasets and DataLoaders
-    train_dataset = HipMRIDataset(train_img_paths, train_msk_paths)
-    val_dataset = HipMRIDataset(val_img_paths, val_msk_paths)
+    train_dataset = HipMRIDataset(train_img_paths, train_msk_paths, augment=True)
+    val_dataset = HipMRIDataset(val_img_paths, val_msk_paths, augment=False)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
@@ -98,7 +98,7 @@ def train_model(base_data_dir, num_epochs=30, batch_size=16, learning_rate=1e-4)
 
         if avg_prostate_dice > best_prostate_dice:
             best_prostate_dice = avg_prostate_dice
-            torch.save(model.state_dict(), 'unet2d_baseline.pth')
+            torch.save(model.state_dict(), 'unet2d_baseline_withAugment.pth')
             print("New best prostate score! Overwriting baseline weights.")
 
 
@@ -118,8 +118,8 @@ def train_model_3d(base_data_dir, num_epochs=30, batch_size=1, learning_rate=1e-
     train_imgs, val_imgs, test_imgs = all_imgs[:168], all_imgs[168:189], all_imgs[189:]
     train_masks, val_masks, test_masks = all_masks[:168], all_masks[168:189], all_masks[189:]
 
-    train_dataset = HipMRI3DDataset(train_imgs, train_masks)
-    val_dataset = HipMRI3DDataset(val_imgs, val_masks)
+    train_dataset = HipMRI3DDataset(train_imgs, train_masks, augment=True)
+    val_dataset = HipMRI3DDataset(val_imgs, val_masks, augment=False)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
@@ -176,7 +176,7 @@ def train_model_3d(base_data_dir, num_epochs=30, batch_size=1, learning_rate=1e-
 
         if avg_prostate_dice > best_prostate_dice:
             best_prostate_dice = avg_prostate_dice
-            torch.save(model.state_dict(), 'unet3d_best.pth')
+            #torch.save(model.state_dict(), 'unet3d_best.pth')
             print("New best prostate score! Overwriting 3D weights.")
 
 if __name__ == "__main__":

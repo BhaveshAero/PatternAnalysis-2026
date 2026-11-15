@@ -79,13 +79,18 @@ def evaluate_patient_volume(patient_loader, weights_path, target_class_idx=1):
     all_preds = []
     all_masks = []
 
+    torch.cuda.reset_peak_memory_stats(device)
+    total_volume_latency = 0.0
+
     with torch.no_grad():
         for images, masks in patient_loader:  # Assumes loader yields ordered slices for 1 patient
             images = images[:, :, :, :128].to(device)
             masks = masks[:, :, :, :128].numpy()
 
+            start_time = time.time()
             outputs = model(images)
             preds = torch.argmax(outputs, dim=1).cpu().numpy()
+            total_volume_latency += (time.time() - start_time)
 
             all_preds.append(preds)
             masks_argmax = np.argmax(masks, axis=1)
@@ -111,6 +116,11 @@ def evaluate_patient_volume(patient_loader, weights_path, target_class_idx=1):
         print(f"Base Slice Dice: {slice_dices[0][1]:.4f}")
         print(f"Mid-Volume Slice Dice: {slice_dices[len(slice_dices) // 2][1]:.4f}")
         print(f"Apex Slice Dice: {slice_dices[-1][1]:.4f}")
+
+
+    peak_vram = torch.cuda.max_memory_allocated(device) / (1024 ** 3)
+    print(f"2D Inference Latency: {total_volume_latency:.4f}s per volume")
+    print(f"2D Peak VRAM Utilized: {peak_vram:.2f}GB")
 
     return volume_preds, volume_masks
 

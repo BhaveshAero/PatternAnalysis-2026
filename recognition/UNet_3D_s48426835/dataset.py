@@ -1,6 +1,7 @@
 import os
 import torch
 import numpy as np
+import random
 from tqdm import tqdm
 import nibabel as nib
 from torch.utils.data import Dataset, DataLoader
@@ -65,10 +66,11 @@ def load_data_2D(imageNames, normImage=False, categorical=False, dtype=np.float3
 
 
 class HipMRIDataset(Dataset):
-    def __init__(self, image_paths, mask_paths):
+    def __init__(self, image_paths, mask_paths, augment=False):
         # Pre-load all images and masks directly into system RAM
         self.images = load_data_2D(image_paths, normImage=True, early_stop=False)
         self.masks = load_data_2D(mask_paths, categorical=True, dtype=np.uint8, early_stop=False)
+        self.augment = augment
 
     def __len__(self):
         return len(self.images)
@@ -83,6 +85,17 @@ class HipMRIDataset(Dataset):
 
         # Masks are (256, 256, 6), permute to (6, 256, 256)
         mask_tensor = torch.from_numpy(mask).permute(2, 0, 1).float()
+
+        if self.augment:
+            # Random Horizontal Flip (dim 2 for H,W)
+            if random.random() > 0.5:
+                img_tensor = torch.flip(img_tensor, dims=[2])
+                mask_tensor = torch.flip(mask_tensor, dims=[2])
+
+            # Random Vertical Flip (dim 1 for H,W)
+            if random.random() > 0.5:
+                img_tensor = torch.flip(img_tensor, dims=[1])
+                mask_tensor = torch.flip(mask_tensor, dims=[1])
 
         return img_tensor, mask_tensor
 
@@ -106,7 +119,7 @@ def get_dataloaders(base_dir, batch_size=16):
                                       os.path.join(base_dir, 'keras_slices_seg_test'))
 
     # Create DataLoaders
-    train_loader = DataLoader(HipMRIDataset(train_imgs, train_masks), batch_size=batch_size, shuffle=True,
+    train_loader = DataLoader(HipMRIDataset(train_imgs, train_masks, augment=true), batch_size=batch_size, shuffle=True,
                               num_workers=0, pin_memory=False)
     val_loader = DataLoader(HipMRIDataset(val_imgs, val_masks), batch_size=batch_size, shuffle=False, num_workers=0,
                             pin_memory=False)
@@ -174,10 +187,11 @@ def load_data_3D(imageNames, normImage=False, categorical=False, dtype=np.float3
         return images
 
 class HipMRI3DDataset(Dataset):
-    def __init__(self, image_paths, mask_paths):
+    def __init__(self, image_paths, mask_paths, augment=False):
         # Pre-load all 3D volumes and masks directly into system RAM
         self.images = load_data_3D(image_paths, normImage=True, early_stop=False)
         self.masks = load_data_3D(mask_paths, categorical=True, dtype=np.uint8, early_stop=False)
+        self.augment = augment
 
     def __len__(self):
         return len(self.images)
@@ -192,5 +206,16 @@ class HipMRI3DDataset(Dataset):
 
         # Masks from loader are (H, W, D, C), permute to (C, D, H, W)
         mask_tensor = torch.from_numpy(mask).permute(3, 2, 0, 1).float()
+
+        if self.augment:
+            # Random Flip along Width (dim 3 for D,H,W)
+            if random.random() > 0.5:
+                img_tensor = torch.flip(img_tensor, dims=[3])
+                mask_tensor = torch.flip(mask_tensor, dims=[3])
+
+            # Random Flip along Height (dim 2 for D,H,W)
+            if random.random() > 0.5:
+                img_tensor = torch.flip(img_tensor, dims=[2])
+                mask_tensor = torch.flip(mask_tensor, dims=[2])
 
         return img_tensor, mask_tensor
