@@ -1,5 +1,6 @@
 import os
 import torch
+import argparse
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import numpy as np
@@ -188,20 +189,42 @@ def evaluate_patient_volume_3d(test_loader_3d, weights_path, target_class_idx=5)
 
 
 if __name__ == "__main__":
-    data_dir_2d = './training data/keras_slices_data'
-    evaluate_and_visualize(data_dir_2d, "unet2d_baseline.pth")
+    parser = argparse.ArgumentParser(description="Evaluate 2D or 3D UNet models.")
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["2d", "3d", "both"],
+        required=True,
+        help="Evaluation mode: '2d', '3d', or 'both'",
+    )
+    parser.add_argument(
+        "--data_dir",
+        type=str,
+        default=None,
+        help="Path to the data directory. Defaults to './training data/keras_slices_data' for 2d and './training data' for 3d.",
+    )
+    args = parser.parse_args()
 
-    data_dir_3d = './training data'
-    img_dir = os.path.join(data_dir_3d, 'semantic_MRs')
-    mask_dir = os.path.join(data_dir_3d, 'semantic_labels_only')
+    if args.mode in ["2d", "both"]:
+        data_dir_2d = (
+            args.data_dir
+            if args.data_dir
+            else "./training data/keras_slices_data"
+        )
+        evaluate_and_visualize(data_dir_2d, "unet2d_baseline.pth")
 
-    all_imgs = get_file_paths(img_dir)
-    all_masks = get_file_paths(mask_dir)
+    if args.mode in ["3d", "both"]:
+        data_dir_3d = args.data_dir if args.data_dir else "./training data"
+        img_dir = os.path.join(data_dir_3d, "semantic_MRs")
+        mask_dir = os.path.join(data_dir_3d, "semantic_labels_only")
 
-    test_imgs = all_imgs[189:]
-    test_masks = all_masks[189:]
+        all_imgs = get_file_paths(img_dir)
+        all_masks = get_file_paths(mask_dir)
 
-    test_dataset_3d = HipMRI3DDataset(test_imgs, test_masks)
-    test_loader_3d = DataLoader(test_dataset_3d, batch_size=1, shuffle=False)
+        test_imgs = all_imgs[189:]
+        test_masks = all_masks[189:]
 
-    evaluate_patient_volume_3d(test_loader_3d, 'unet3d_best.pth')
+        test_dataset_3d = HipMRI3DDataset(test_imgs, test_masks)
+        test_loader_3d = DataLoader(test_dataset_3d, batch_size=1, shuffle=False)
+
+        evaluate_patient_volume_3d(test_loader_3d, "unet3d_best.pth")

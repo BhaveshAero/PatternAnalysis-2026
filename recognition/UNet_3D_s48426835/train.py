@@ -1,6 +1,7 @@
 import os
 import torch
 import torch.nn.functional as F
+import argparse
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from torch.amp import autocast, GradScaler
@@ -108,9 +109,9 @@ def train_model_3d(base_data_dir, num_epochs=30, batch_size=1, learning_rate=1e-
     all_masks = get_file_paths(mask_dir)
 
     # Update the split in train_model_3d to use the full 211 volumes
-    # Approx 80% Train (168 volumes) and 10% Val (21 volumes)
-    train_imgs, val_imgs = all_imgs[:168], all_imgs[168:189]
-    train_masks, val_masks = all_masks[:168], all_masks[168:189]
+    # Approx 80% Train (168 volumes) and 10% Val (21 volumes) and 10% Test (21 volumes)
+    train_imgs, val_imgs, test_imgs = all_imgs[:168], all_imgs[168:189], all_imgs[189:]
+    train_masks, val_masks, test_masks = all_masks[:168], all_masks[168:189], all_masks[189:]
 
     train_dataset = HipMRI3DDataset(train_imgs, train_masks)
     val_dataset = HipMRI3DDataset(val_imgs, val_masks)
@@ -138,7 +139,12 @@ def train_model_3d(base_data_dir, num_epochs=30, batch_size=1, learning_rate=1e-
 
             with autocast('cuda'):
                 outputs = model(images)
-                loss = criterion(outputs, masks)
+                ce_loss = criterion(outputs, masks)
+
+                preds_one_hot = F.one_hot(torch.argmax(outputs, dim=1), num_classes=6).permute(0, 4, 1, 2, 3).float()
+                dice_loss = 1.0 - per_class_dice_3d(preds_one_hot, masks).mean()
+
+                loss = ce_loss + dice_loss
 
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -169,8 +175,29 @@ def train_model_3d(base_data_dir, num_epochs=30, batch_size=1, learning_rate=1e-
             print("New best prostate score! Overwriting 3D weights.")
 
 if __name__ == "__main__":
-    # For marker, if wanting to train a different model.
-    data_dir = './training data' # Adjust to your base directory
-    # Choose which model to train:
-    # train_model(data_dir)
-    train_model_3d(data_dir)
+    parser = argparse.ArgumentParser(description="Train 2D or 3D UNet model.")
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["2d", "3d"],
+        required=True,
+        help="Training mode: '2d' or '3d'",
+    )
+    parser.add_argument(
+        "--data_dir",
+        type=str,
+        default=None,
+        help="Base data directory. Defaults to './training data/keras_slices_data' for 2d and './training data' for 3d.",
+    )
+    args = parser.parse_args()
+
+    if args.mode == "2d":
+        data_dir = (
+            args.data_dir
+            if args.data_dir
+            else "./training data/keras_slices_data"
+        )
+        train_model(data_dir)
+    elif args.mode == "3d":
+        data_dir = args.data_dir if args.data_dir else "./training data"
+        train_model_3d(data_dir)
