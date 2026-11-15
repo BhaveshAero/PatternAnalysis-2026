@@ -1,8 +1,11 @@
+import os
 import torch
+from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import numpy as np
-from dataset import get_dataloaders
+from dataset import get_dataloaders, HipMRIDataset, HipMRI3DDataset
 from modules import UNet2D, UNet3D
+from train import get_file_paths
 
 def calculate_dice(y_true, y_pred, class_index, smooth=1e-5):
     """Calculate Dice coefficient for a specific class."""
